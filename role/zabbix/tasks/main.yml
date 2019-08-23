@@ -1,0 +1,188 @@
+---
+# tasks file for role/zabbix
+
+
+          - name: Install Zabbix ..
+            apt:
+                    deb: "{{ role_path }}/files/zabbix-release_4.2-1+bionic_all.deb"
+                    state: present
+
+
+          - name: Update cache..
+            apt:
+                    update_cache: yes
+
+
+          - name: Install Zabbix ..
+            apt:
+                    name: zabbix-server-pgsql
+                    state: latest
+
+
+          - name: Configure Zabbix GUI
+            apt:
+                    name: zabbix-frontend-php
+                    state: latest
+
+
+          - name: Instal needed packages..
+            apt:
+                    name : "{{ item }}"
+                    state: latest
+            with_items:
+                  - python-psycopg2
+                  - libpq-dev
+                  - php-pgsql
+                  - php
+                  - libapache2-mod-php
+
+
+          - name: install psycopg2 python module
+            pip:
+                    name: psycopg2
+
+          - name: install psycopg2 python module
+            pip:
+                    name: pexpect
+
+
+
+
+###########################################################
+##########   >> Configure DataBase <<  ####################
+###########################################################
+
+
+
+          - name: Create database ..
+            become_user: postgres
+            postgresql_db:
+                    name: zabbix
+                    state: present
+                    template: template0
+
+
+          - name: Create PostgreSQL user & set  password with no expire date ..
+            become_user: postgres
+            postgresql_user:
+                    db: zabbix
+                    name: zabbix
+                    password: zabbix123!
+                    priv: ALL
+
+
+
+          - name: Install expect ..
+            apt:
+                    name: expect
+                    state: latest
+
+
+          - name: Case insensitive password string match
+            become_user: postgres
+            expect:
+                  command: zcat /usr/share/doc/zabbix-server-pgsql/create.sql.gz | psql zabbix  -h 127.0.0.1 -d zabbix
+                  responses:
+                     Password for user zabbix: "zabbix123!"
+
+
+
+          - name: Make changes in /etc/zabbix/zabbix_server/conf ..
+            copy:
+                    src: zabbix_server.conf
+                    dest: /etc/zabbix/zabbix_server.conf
+
+
+          - name: Install Apache2 ..
+            apt:
+                    name: apache2
+                    state: latest
+
+
+          - name: Start Apache2 Service ..
+            service:
+                    name: apache2
+                    enabled: yes
+                    state: started
+
+
+          - name: Start Zabbix Service ..
+            service:
+                    name: zabbix-server
+                    enabled: yes
+                    state: started
+
+
+
+
+
+          - name: Make changes in /etc/apache2/conf-enabled/zabbix.conf
+            copy:
+                    src: zabbix.conf
+                    dest: /etc/apache2/conf-enabled/zabbix.conf
+
+          - name: Create zabbix direcory in /var/www/html
+            file:
+                    path: /var/www/html/zabbix
+                    state: directory
+
+
+
+
+          - name: Configure GUi
+            copy:
+                 src: "{{ item }}"
+                 dest: "/var/www/html/zabbix/"
+            with_fileglob:
+                            - "zabbix-4.2.5/frontends/php/*"
+
+
+          - name: Copy directories ..
+            copy:
+                    src: "{{ item }}"
+                    dest: "/var/www/html/zabbix/"
+            with_items:
+                            - zabbix-4.2.5/frontends/php/app
+                            - zabbix-4.2.5/frontends/php/assets
+                            - zabbix-4.2.5/frontends/php/conf
+                            - zabbix-4.2.5/frontends/php/include
+                            - zabbix-4.2.5/frontends/php/js
+                            - zabbix-4.2.5/frontends/php/local
+                            - zabbix-4.2.5/frontends/php/locale
+                            - zabbix-4.2.5/frontends/php/audio
+
+
+
+          - name: Change mode zabbix directory
+            file:
+                    name: /var/www/html/zabbix
+                    mode: 0755
+                    recurse: yes
+
+
+          - name: Disable modules ..
+            shell: "a2dismod {{ item }}"
+            with_items:
+                    - mpm_event
+                    - mpm_worker
+
+
+          - name: Enable modules ..
+            shell: "a2enmod {{ item }}"
+            with_items:
+                    - mpm_prefork
+                    - php7.2
+
+
+
+
+          - name: Restart Zabbix & Apache2 Services ..
+            service:
+                    name: "{{ item }}"
+                    enabled: yes
+                    state: restarted
+            with_items:
+                  - apache2
+                  - zabbix-server
+
+

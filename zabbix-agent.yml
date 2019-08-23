@@ -1,0 +1,27 @@
+---
+- name: Configure Zabbix Server on Ubuntu 18.04 LTS
+  hosts: localhost
+  gather_facts: false
+  become: yes
+  tasks:
+          - name: Install Zabbix agent ..
+            apt:
+                    name: "{{ item }}"
+                    state: latest
+            with_items:
+                    - zabbix-agent
+                    - zabbix-java-gateway
+
+
+
+          - name: Start service
+            service:
+                    name: "{{ item }}"
+                    state: started
+                    enabled: yes   
+            with_items:
+                    - zabbix-agent
+                    - zabbix-java-gateway        
+
+
+          - name: Make changes in zabbix-agent.conf file ..            
